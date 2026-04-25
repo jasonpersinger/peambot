@@ -73,3 +73,6 @@ Memory:
   mem0ai:
     type: mem0ai
     api_key: "${MEM0_API_KEY}"
+
+# Note: Pi-hole and weather tool credentials live in .env for the MCP sidecar,
+# not here. See data/.mcp_server_settings.json and mcp-server/server.py.

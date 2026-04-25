@@ -4,28 +4,62 @@ import requests
 from fastmcp import FastMCP
 
 PIHOLE_HOST = os.environ.get("PIHOLE_HOST", "192.168.1.103")
-PIHOLE_API_KEY = os.environ.get("PIHOLE_API_KEY", "")
+PIHOLE_PORT = os.environ.get("PIHOLE_PORT", "8080")
+PIHOLE_PASSWORD = os.environ.get("PIHOLE_PASSWORD", "")
 OWM_API_KEY = os.environ.get("OWM_API_KEY", "")
 
 mcp = FastMCP("peambot-tools")
 
 
+def _pihole_base() -> str:
+    return f"http://{PIHOLE_HOST}:{PIHOLE_PORT}"
+
+
+def _pihole_auth() -> str | None:
+    """Authenticate with Pi-hole v6 API. Returns session ID or None on failure."""
+    if not PIHOLE_PASSWORD:
+        return None
+    try:
+        r = requests.post(
+            f"{_pihole_base()}/api/auth",
+            json={"password": PIHOLE_PASSWORD},
+            timeout=5,
+        )
+        r.raise_for_status()
+        return r.json()["session"]["sid"]
+    except Exception:
+        return None
+
+
 @mcp.tool()
 def pihole_get_stats() -> str:
     """Get Pi-hole ad-blocking statistics: status, queries today, blocked count, percent blocked."""
-    url = f"http://{PIHOLE_HOST}/admin/api.php"
+    sid = _pihole_auth()
+    if sid is None:
+        return "Pi-hole unavailable: could not authenticate (check PIHOLE_PASSWORD)."
     try:
-        r = requests.get(url, params={"summaryRaw": "", "auth": PIHOLE_API_KEY}, timeout=5)
+        r = requests.get(
+            f"{_pihole_base()}/api/stats/summary",
+            params={"sid": sid},
+            timeout=5,
+        )
         r.raise_for_status()
         d = r.json()
+        queries = d.get("queries", {})
+        gravity = d.get("gravity", {})
+        blocking = d.get("blocking", "unknown")
+        total = queries.get("total", "?")
+        blocked = queries.get("blocked", "?")
+        pct = float(queries.get("percent_blocked", 0))
+        domains_blocked = gravity.get("domains_being_blocked", "?")
         return (
-            f"Pi-hole status: {d.get('status', 'unknown')}\n"
-            f"Queries today: {d.get('dns_queries_today', '?')}\n"
-            f"Blocked today: {d.get('ads_blocked_today', '?')}\n"
-            f"Percent blocked: {float(d.get('ads_percentage_today', 0)):.1f}%"
+            f"Pi-hole status: {blocking}\n"
+            f"Queries today: {total}\n"
+            f"Blocked today: {blocked} ({pct:.1f}%)\n"
+            f"Domains on blocklist: {domains_blocked}"
         )
     except Exception as e:
-        return f"Pi-hole unreachable: {e}"
+        return f"Pi-hole stats failed: {e}"
 
 
 @mcp.tool()
@@ -36,15 +70,22 @@ def pihole_pause(seconds: int = 0) -> str:
     Args:
         seconds: How long to pause in seconds. 0 means pause indefinitely.
     """
-    url = f"http://{PIHOLE_HOST}/admin/api.php"
-    # Pi-hole v5 API: bare 'disable' key = indefinite, 'disable=N' = N seconds
-    query = f"disable={seconds}&auth={PIHOLE_API_KEY}" if seconds > 0 else f"disable&auth={PIHOLE_API_KEY}"
+    sid = _pihole_auth()
+    if sid is None:
+        return "Pi-hole unavailable: could not authenticate (check PIHOLE_PASSWORD)."
+    payload = {"blocking": False}
+    if seconds > 0:
+        payload["timer"] = seconds
     try:
-        r = requests.get(f"{url}?{query}", timeout=5)
+        r = requests.post(
+            f"{_pihole_base()}/api/dns/blocking",
+            params={"sid": sid},
+            json=payload,
+            timeout=5,
+        )
         r.raise_for_status()
-        status = r.json().get("status", "unknown")
         duration = f"for {seconds} seconds" if seconds > 0 else "indefinitely"
-        return f"Pi-hole paused {duration}. Current status: {status}"
+        return f"Pi-hole paused {duration}."
     except Exception as e:
         return f"Failed to pause Pi-hole: {e}"
 
@@ -52,12 +93,18 @@ def pihole_pause(seconds: int = 0) -> str:
 @mcp.tool()
 def pihole_resume() -> str:
     """Resume Pi-hole ad blocking after a pause."""
-    url = f"http://{PIHOLE_HOST}/admin/api.php"
+    sid = _pihole_auth()
+    if sid is None:
+        return "Pi-hole unavailable: could not authenticate (check PIHOLE_PASSWORD)."
     try:
-        r = requests.get(f"{url}?enable&auth={PIHOLE_API_KEY}", timeout=5)
+        r = requests.post(
+            f"{_pihole_base()}/api/dns/blocking",
+            params={"sid": sid},
+            json={"blocking": True},
+            timeout=5,
+        )
         r.raise_for_status()
-        status = r.json().get("status", "unknown")
-        return f"Pi-hole resumed. Current status: {status}"
+        return "Pi-hole resumed."
     except Exception as e:
         return f"Failed to resume Pi-hole: {e}"
 
