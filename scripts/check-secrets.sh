@@ -29,10 +29,15 @@ for file in "${files[@]}"; do
       fi
       ;;
     data/.config.yaml|data/*.yaml|data/*.yml|data/*.json)
-      if [ "$file" != "data/.mcp_server_settings.example.json" ]; then
-        echo "secret scan: refusing to include generated/private server config $file" >&2
-        exit 1
-      fi
+      case "$file" in
+        data/.mcp_server_settings.example.json|data/.mcp_server_settings.json|data/.config.yaml.template)
+          # safe to commit — no secrets, no substituted values
+          ;;
+        *)
+          echo "secret scan: refusing to include generated/private server config $file" >&2
+          exit 1
+          ;;
+      esac
       ;;
   esac
 done

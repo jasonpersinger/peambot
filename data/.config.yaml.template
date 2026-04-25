@@ -1,0 +1,75 @@
+server:
+  ip: 0.0.0.0
+  port: 8000
+  http_port: 8003
+  websocket: ws://192.168.1.103:8000/xiaozhi/v1/
+  vision_explain: http://192.168.1.103:8003/mcp/vision/explain
+  timezone_offset: +0
+  auth:
+    enabled: false
+
+prompt: |
+  You are Peambot, a helpful AI desk assistant running on a Raspberry Pi.
+  You are concise, friendly, and practical. You have tools to check the weather,
+  query Pi-hole ad-blocking stats, and read system health metrics for the machine
+  you run on. Keep answers brief and conversational — this is a voice interface.
+
+wakeup_words:
+  - "Hey Peambot"
+  - "Peambot"
+  - "Hey Pam"
+
+selected_module:
+  VAD: SileroVAD
+  ASR: GroqASR
+  LLM: GeminiLLM
+  TTS: ElevenLabsTTS
+  Memory: mem0ai
+  Intent: function_call
+
+Intent:
+  function_call:
+    type: function_call
+    functions: []
+
+LLM:
+  GeminiLLM:
+    type: gemini
+    api_key: "${GEMINI_API_KEY}"
+    model_name: "gemini-2.0-flash"
+    http_proxy: ""
+    https_proxy: ""
+
+ASR:
+  GroqASR:
+    type: openai
+    api_key: "${GROQ_API_KEY}"
+    base_url: https://api.groq.com/openai/v1/audio/transcriptions
+    model_name: whisper-large-v3-turbo
+    output_dir: tmp/
+
+TTS:
+  ElevenLabsTTS:
+    type: custom
+    method: POST
+    url: "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM?output_format=mp3_44100_128"
+    params:
+      text: "{prompt_text}"
+      model_id: "eleven_multilingual_v2"
+    headers:
+      xi-api-key: "${ELEVENLABS_API_KEY}"
+    format: mp3
+    output_dir: tmp/
+
+VAD:
+  SileroVAD:
+    type: silero
+    threshold: 0.5
+    threshold_low: 0.3
+    model_dir: models/snakers4_silero-vad
+    min_silence_duration_ms: 200
+
+Memory:
+  mem0ai:
+    type: mem0ai
+    api_key: "${MEM0_API_KEY}"

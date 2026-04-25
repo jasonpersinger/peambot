@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "peambot-tools": {
+      "url": "http://peambot-mcp-server:8001/sse"
+    }
+  }
+}
