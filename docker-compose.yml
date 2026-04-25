@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  xiaozhi-esp32-server:
+    image: ghcr.nju.edu.cn/xinnan-tech/xiaozhi-esp32-server:server_latest
+    container_name: xiaozhi-esp32-server
+    restart: unless-stopped
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      - TZ=Europe/London
+    ports:
+      - "8000:8000"
+      - "8003:8003"
+    volumes:
+      - ./data:/opt/xiaozhi-esp32-server/data
+      - ./models:/opt/xiaozhi-esp32-server/models
+    depends_on:
+      - peambot-mcp-server
+
+  peambot-mcp-server:
+    build: ./mcp-server
+    container_name: peambot-mcp-server
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    env_file:
+      - .env
