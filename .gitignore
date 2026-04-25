@@ -1,0 +1,36 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+data/.config.yaml
+data/**/*.yaml
+data/**/*.yml
+data/**/*.json
+!data/.mcp_server_settings.example.json
+!data/.mcp_server_settings.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node / web UI tooling
+node_modules/
+dist/
+build/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Docker volume data
+models/
+
+# Logs and local output
+*.log
+logs/
+tmp/
+temp/
