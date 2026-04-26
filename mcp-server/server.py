@@ -22,12 +22,13 @@ def _gemini_grounded_answer(prompt: str, max_words: int = 90) -> str:
     voice_prompt = (
         "You are Peambot, a concise voice assistant. Use Google Search grounding for "
         "fresh facts. Answer in English. Keep the answer under "
-        f"{max_words} words. Prefer reputable sources such as AP, Reuters, official "
-        "league/team pages, company investor relations, SEC filings, and major market "
-        "data providers. Mention source names briefly when useful. If facts are "
-        "uncertain or market data may have moved, say so. Do not give financial advice. "
-        "Do not invent breaking events. For major news claims, require multiple credible "
-        "sources or say you cannot verify a clear top story.\n\n"
+        f"{max_words} words. Match the user's domain: news, finance, sports, tech, "
+        "science, shopping, travel, local info, entertainment, history, or general "
+        "research. Prefer reputable primary or specialist sources for the domain. "
+        "Mention source names briefly when useful. If facts are uncertain, stale, "
+        "or market data may have moved, say so. Do not give financial advice. Do not "
+        "invent breaking events; for major claims, require credible support or say "
+        "you cannot verify it.\n\n"
         f"User request: {prompt}"
     )
 
@@ -238,6 +239,27 @@ def get_weather(city: str) -> str:
         )
     except Exception as e:
         return f"Weather lookup failed: {e}"
+
+
+@mcp.tool()
+def ask_gemini_live(query: str) -> str:
+    """
+    Ask Gemini with live Google Search grounding for any open-ended or current-world query.
+
+    Use this broad tool for questions that need current information, outside knowledge,
+    web research, comparisons, recommendations, explanations grounded in recent facts,
+    or analysis that is not covered by a more specific local tool.
+
+    Args:
+        query: The user's full question or task.
+    """
+    return _gemini_grounded_answer(
+        "Answer this user request with live grounded context when useful. If the "
+        "request is analytical, synthesize the important tradeoffs or likely meaning. "
+        "If the request is factual, answer directly and name key sources when useful. "
+        f"Request: {query}",
+        max_words=110,
+    )
 
 
 @mcp.tool()
