@@ -281,6 +281,13 @@ void Application::HandleNetworkConnectedEvent() {
     // Update the status bar immediately to show the network state
     auto display = Board::GetInstance().GetDisplay();
     display->UpdateStatusBar(true);
+
+    if (udp_trigger_ == nullptr) {
+        udp_trigger_ = new UdpTrigger([this]() {
+            StartListening();
+        });
+        udp_trigger_->Start();
+    }
 }
 
 void Application::HandleNetworkDisconnectedEvent() {
