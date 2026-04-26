@@ -556,6 +556,9 @@ void Application::InitializeProtocol() {
                 });
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
+            Schedule([display]() {
+                display->SetStatus(Lang::Strings::THINKING);
+            });
             auto emotion = cJSON_GetObjectItem(root, "emotion");
             if (cJSON_IsString(emotion)) {
                 Schedule([display, emotion_str = std::string(emotion->valuestring)]() {
