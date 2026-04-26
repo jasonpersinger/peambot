@@ -1,5 +1,6 @@
 import os
 import shutil
+from urllib.parse import urlparse
 import requests
 from fastmcp import FastMCP
 
@@ -7,8 +8,78 @@ PIHOLE_HOST = os.environ.get("PIHOLE_HOST", "192.168.1.103")
 PIHOLE_PORT = os.environ.get("PIHOLE_PORT", "8080")
 PIHOLE_PASSWORD = os.environ.get("PIHOLE_PASSWORD", "")
 OWM_API_KEY = os.environ.get("OWM_API_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_SEARCH_MODEL = os.environ.get("GEMINI_SEARCH_MODEL", "gemini-2.5-flash")
 
 mcp = FastMCP("peambot-tools")
+
+
+def _gemini_grounded_answer(prompt: str, max_words: int = 90) -> str:
+    """Ask Gemini with Google Search grounding for current-world questions."""
+    if not GEMINI_API_KEY:
+        return "Gemini API key not configured."
+
+    voice_prompt = (
+        "You are Peambot, a concise voice assistant. Use Google Search grounding for "
+        "fresh facts. Answer in English. Keep the answer under "
+        f"{max_words} words. Prefer reputable sources such as AP, Reuters, official "
+        "league/team pages, company investor relations, SEC filings, and major market "
+        "data providers. Mention source names briefly when useful. If facts are "
+        "uncertain or market data may have moved, say so. Do not give financial advice. "
+        "Do not invent breaking events. For major news claims, require multiple credible "
+        "sources or say you cannot verify a clear top story.\n\n"
+        f"User request: {prompt}"
+    )
+
+    try:
+        r = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_SEARCH_MODEL}:generateContent",
+            headers={
+                "x-goog-api-key": GEMINI_API_KEY,
+                "Content-Type": "application/json",
+            },
+            json={
+                "contents": [{"parts": [{"text": voice_prompt}]}],
+                "tools": [{"google_search": {}}],
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "maxOutputTokens": 260,
+                },
+            },
+            timeout=20,
+        )
+        r.raise_for_status()
+        data = r.json()
+        parts = data["candidates"][0]["content"].get("parts", [])
+        text = "".join(part.get("text", "") for part in parts).strip()
+        if not text:
+            return "I could not find a grounded answer."
+
+        sources = _grounding_source_names(data)
+        if sources and "source" not in text.lower():
+            text = f"{text} Sources: {', '.join(sources[:3])}."
+        return text
+    except Exception as e:
+        return f"Live lookup failed: {e}"
+
+
+def _grounding_source_names(data: dict) -> list[str]:
+    candidates = data.get("candidates") or []
+    if not candidates:
+        return []
+
+    metadata = candidates[0].get("groundingMetadata") or {}
+    chunks = metadata.get("groundingChunks") or []
+    names = []
+    for chunk in chunks:
+        web = chunk.get("web") or {}
+        title = (web.get("title") or "").strip()
+        uri = web.get("uri") or ""
+        host = urlparse(uri).netloc.removeprefix("www.")
+        name = title or host
+        if name and name not in names:
+            names.append(name)
+    return names
 
 
 def _pihole_base() -> str:
@@ -167,6 +238,59 @@ def get_weather(city: str) -> str:
         )
     except Exception as e:
         return f"Weather lookup failed: {e}"
+
+
+@mcp.tool()
+def analyze_news(topic: str = "top news in the United States right now") -> str:
+    """
+    Analyze current news using live Google Search grounding.
+
+    Args:
+        topic: News topic or scope, e.g. 'biggest US news story right now',
+            'AI regulation', or 'Philadelphia local news'.
+    """
+    return _gemini_grounded_answer(
+        "Analyze the current news for this topic. Identify the biggest story or "
+        "most important development, explain why it matters, and name the source "
+        f"types or outlets you used. Topic: {topic}",
+        max_words=95,
+    )
+
+
+@mcp.tool()
+def financial_update(query: str) -> str:
+    """
+    Get a current financial or market update using live Google Search grounding.
+
+    Args:
+        query: Ticker, asset, market, company, or financial question, e.g.
+            'NVDA stock today', 'Bitcoin price', or 'market open summary'.
+    """
+    return _gemini_grounded_answer(
+        "Give a current financial update for this request. Include the latest "
+        "price or direction if available, the main driver, and one caveat. Do not "
+        f"recommend buying or selling. Request: {query}",
+        max_words=90,
+    )
+
+
+@mcp.tool()
+def sports_lineup_analysis(query: str) -> str:
+    """
+    Analyze current sports lineups, injuries, rosters, or matchups using live Google Search grounding.
+
+    Args:
+        query: Team, player, league, game, or lineup question, e.g.
+            'Eagles projected starters', 'Sixers injury report', or
+            'Phillies lineup tonight'.
+    """
+    return _gemini_grounded_answer(
+        "Analyze the current sports lineup or matchup for this request. Use the "
+        "latest available injury, roster, depth chart, or official lineup reports. "
+        "Call out if lineups are projected rather than confirmed. Request: "
+        f"{query}",
+        max_words=95,
+    )
 
 
 if __name__ == "__main__":
