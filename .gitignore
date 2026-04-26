@@ -37,3 +37,8 @@ temp/
 
 # Git worktrees
 .worktrees/
+
+# Wake word training artifacts
+wake-word-training/positive/
+wake-word-training/background_noise/
+wake-word-training/*.onnx.tmp
