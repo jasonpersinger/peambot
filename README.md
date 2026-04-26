@@ -2,6 +2,10 @@
 
 Self-hosted AI desktop buddy: an ESP32-S3 AMOLED robot face backed by a Raspberry Pi home server running the xiaozhi ecosystem, Gemini-compatible LLM/VLLM, voice I/O, memory, and MCP automation.
 
+## Current Handoff
+
+For the latest operational state, deployment commands, known issues, and next steps, start with [docs/handoff.md](docs/handoff.md). Some older planning notes below are preserved for context and may be stale.
+
 ## Current State
 
 - Local project folder was empty when this document was created.
@@ -73,4 +77,3 @@ Start with the backend and deployment scaffold before touching firmware:
 6. Only after the stock path works, add Peambot-specific MCP tools and enclosure/camera work.
 
 The next actionable file is [docs/pickup-plan.md](docs/pickup-plan.md).
-
