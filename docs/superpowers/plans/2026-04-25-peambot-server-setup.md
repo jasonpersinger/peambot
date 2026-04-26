@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deploy xinnan-tech/xiaozhi-esp32-server on voidberry (192.168.1.103) with Gemini/Groq/ElevenLabs/mem0ai/SileroVAD, a custom Python MCP server exposing Pi-hole + system + weather tools, and ESP32 firmware pointed at the local WebSocket endpoint.
+**Goal:** Deploy xinnan-tech/xiaozhi-esp32-server on voidberry (192.168.1.103) with Gemini/Groq/EdgeTTS or ElevenLabs/mem0ai/SileroVAD, a custom Python MCP server exposing Pi-hole + system + weather tools, and ESP32 firmware pointed at the local WebSocket endpoint.
 
 **Architecture:** The main xiaozhi-esp32-server container handles the ESP32 WebSocket, while a sidecar peambot-mcp-server container exposes five MCP tools via SSE on port 8001. API keys live only in `.env` on voidberry; a gen-config.py script substitutes them into the YAML config template before first run.
 
@@ -57,8 +57,10 @@ GROQ_API_KEY=
 ELEVENLABS_API_KEY=
 MEM0_API_KEY=
 OWM_API_KEY=
-PIHOLE_API_KEY=
+# Pi-hole v6: use the admin password or a dedicated app password.
+PIHOLE_PASSWORD=
 PIHOLE_HOST=192.168.1.103
+PIHOLE_PORT=8080
 ```
 
 - [ ] **Step 3: Commit**
@@ -88,134 +90,10 @@ requests>=2.31.0
 
 - [ ] **Step 2: Write server.py**
 
-```python
-import os
-import shutil
-import requests
-from fastmcp import FastMCP
-
-PIHOLE_HOST = os.environ.get("PIHOLE_HOST", "192.168.1.103")
-PIHOLE_API_KEY = os.environ.get("PIHOLE_API_KEY", "")
-OWM_API_KEY = os.environ.get("OWM_API_KEY", "")
-
-mcp = FastMCP("peambot-tools")
-
-
-@mcp.tool()
-def pihole_get_stats() -> str:
-    """Get Pi-hole ad-blocking statistics: status, queries today, blocked count, percent blocked."""
-    url = f"http://{PIHOLE_HOST}/admin/api.php"
-    try:
-        r = requests.get(url, params={"summaryRaw": "", "auth": PIHOLE_API_KEY}, timeout=5)
-        r.raise_for_status()
-        d = r.json()
-        return (
-            f"Pi-hole status: {d.get('status', 'unknown')}\n"
-            f"Queries today: {d.get('dns_queries_today', '?')}\n"
-            f"Blocked today: {d.get('ads_blocked_today', '?')}\n"
-            f"Percent blocked: {float(d.get('ads_percentage_today', 0)):.1f}%"
-        )
-    except Exception as e:
-        return f"Pi-hole unreachable: {e}"
-
-
-@mcp.tool()
-def pihole_pause(seconds: int = 0) -> str:
-    """
-    Pause Pi-hole ad blocking.
-
-    Args:
-        seconds: How long to pause in seconds. 0 means pause indefinitely.
-    """
-    url = f"http://{PIHOLE_HOST}/admin/api.php"
-    query = f"disable={seconds}&auth={PIHOLE_API_KEY}" if seconds > 0 else f"disable&auth={PIHOLE_API_KEY}"
-    try:
-        r = requests.get(f"{url}?{query}", timeout=5)
-        r.raise_for_status()
-        status = r.json().get("status", "unknown")
-        duration = f"for {seconds} seconds" if seconds > 0 else "indefinitely"
-        return f"Pi-hole paused {duration}. Current status: {status}"
-    except Exception as e:
-        return f"Failed to pause Pi-hole: {e}"
-
-
-@mcp.tool()
-def pihole_resume() -> str:
-    """Resume Pi-hole ad blocking after a pause."""
-    url = f"http://{PIHOLE_HOST}/admin/api.php"
-    try:
-        r = requests.get(f"{url}?enable&auth={PIHOLE_API_KEY}", timeout=5)
-        r.raise_for_status()
-        status = r.json().get("status", "unknown")
-        return f"Pi-hole resumed. Current status: {status}"
-    except Exception as e:
-        return f"Failed to resume Pi-hole: {e}"
-
-
-@mcp.tool()
-def system_get_stats() -> str:
-    """Get voidberry system stats: CPU temperature, uptime, and disk usage."""
-    # CPU temperature — kernel exports millidegrees Celsius
-    try:
-        raw = open("/host/sys/class/thermal/thermal_zone0/temp").read().strip()
-        temp_str = f"{int(raw) / 1000:.1f}°C"
-    except Exception:
-        temp_str = "unavailable"
-
-    # Uptime from /proc/uptime — first field is seconds since boot
-    try:
-        secs = float(open("/host/proc/uptime").read().split()[0])
-        d, rem = divmod(int(secs), 86400)
-        h, rem = divmod(rem, 3600)
-        m = rem // 60
-        uptime_str = f"{d}d {h}h {m}m"
-    except Exception:
-        uptime_str = "unavailable"
-
-    # Disk usage of root filesystem
-    try:
-        u = shutil.disk_usage("/")
-        disk_str = f"{u.used / 1e9:.1f} GB / {u.total / 1e9:.1f} GB ({u.used / u.total * 100:.0f}%)"
-    except Exception:
-        disk_str = "unavailable"
-
-    return f"CPU temperature: {temp_str}\nUptime: {uptime_str}\nDisk: {disk_str}"
-
-
-@mcp.tool()
-def get_weather(city: str) -> str:
-    """
-    Get current weather conditions for a city.
-
-    Args:
-        city: City name, e.g. 'London' or 'New York'.
-    """
-    if not OWM_API_KEY:
-        return "OpenWeatherMap API key not configured."
-    try:
-        r = requests.get(
-            "https://api.openweathermap.org/data/2.5/weather",
-            params={"q": city, "appid": OWM_API_KEY, "units": "metric"},
-            timeout=10,
-        )
-        if r.status_code == 404:
-            return f"City '{city}' not found."
-        r.raise_for_status()
-        d = r.json()
-        return (
-            f"Weather in {d['name']}: {d['weather'][0]['description'].capitalize()}\n"
-            f"Temperature: {d['main']['temp']:.1f}°C "
-            f"(feels like {d['main']['feels_like']:.1f}°C)\n"
-            f"Humidity: {d['main']['humidity']}%\n"
-            f"Wind: {d['wind']['speed']} m/s"
-        )
-    except Exception as e:
-        return f"Weather lookup failed: {e}"
-
-
-if __name__ == "__main__":
-    mcp.run(transport="sse", host="0.0.0.0", port=8001)
-```
+Use the current repository implementation in `mcp-server/server.py`. It targets
+Pi-hole v6 session authentication (`POST /api/auth` with `PIHOLE_PASSWORD`), uses
+`/api/stats/summary` and `/api/dns/blocking`, reads host CPU/uptime through
+read-only `/host` mounts, and reports host disk usage via `/host/root`.
 
 - [ ] **Step 3: Write Dockerfile**
 
@@ -259,11 +137,9 @@ git commit -m "feat: MCP sidecar server — pihole, system stats, weather tools"
 - [ ] **Step 1: Write docker-compose.yml**
 
 ```yaml
-version: "3.9"
-
 services:
   xiaozhi-esp32-server:
-    image: ghcr.nju.edu.cn/xinnan-tech/xiaozhi-esp32-server:server_latest
+    image: ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_latest
     container_name: xiaozhi-esp32-server
     restart: unless-stopped
     security_opt:
@@ -286,6 +162,7 @@ services:
     ports:
       - "8001:8001"
     volumes:
+      - /:/host/root:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
     env_file:
@@ -351,7 +228,7 @@ selected_module:
   VAD: SileroVAD
   ASR: GroqASR
   LLM: GeminiLLM
-  TTS: ElevenLabsTTS
+  TTS: EdgeTTS
   Memory: mem0ai
   Intent: function_call
 
@@ -377,6 +254,13 @@ ASR:
     output_dir: tmp/
 
 TTS:
+  EdgeTTS:
+    type: edge
+    voice: en-US-BrianNeural
+    language: English
+    volume: "+200%"
+    format: mp3
+    output_dir: tmp/
   ElevenLabsTTS:
     type: custom
     method: POST
@@ -515,8 +399,9 @@ GROQ_API_KEY=<rotated key from console.groq.com>
 ELEVENLABS_API_KEY=<rotated key from elevenlabs.io>
 MEM0_API_KEY=<rotated key from app.mem0.ai>
 OWM_API_KEY=<key from openweathermap.org>
-PIHOLE_API_KEY=<from Pi-hole admin → Settings → API>
+PIHOLE_PASSWORD=<Pi-hole v6 admin password or app password>
 PIHOLE_HOST=192.168.1.103
+PIHOLE_PORT=8080
 ```
 
 - [ ] **Step 3: Generate .config.yaml**
@@ -680,4 +565,4 @@ Expected: spoken CPU temp, uptime, and disk usage.
 
 **MCP tools not appearing to LLM:** Confirm `.mcp_server_settings.json` is in `./data/` and the file is named exactly `.mcp_server_settings.json`. Check `docker compose logs xiaozhi-esp32-server | grep -i mcp`.
 
-**Pi-hole stats return empty:** The Pi-hole API key may be wrong or Pi-hole may not be running on `PIHOLE_HOST`. Test with `curl "http://192.168.1.103/admin/api.php?summaryRaw&auth=YOUR_KEY"` from voidberry.
+**Pi-hole stats return empty:** The Pi-hole v6 password/app password may be wrong or Pi-hole may not be running on `PIHOLE_HOST:PIHOLE_PORT`. Test auth from voidberry with `curl -X POST "http://192.168.1.103:8080/api/auth" --json '{"password":"YOUR_PASSWORD"}'`.

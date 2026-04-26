@@ -1,9 +1,6 @@
 #include "peambot_display.h"
-#include <esp_log.h>
 #include <cstring>
 #include <string_view>
-
-static const char* TAG = "PeambotDisplay";
 
 // ── Geometry ──────────────────────────────────────────────
 static constexpr int EYE_W       = 110;

@@ -128,9 +128,9 @@ def system_get_stats() -> str:
     except Exception:
         uptime_str = "unavailable"
 
-    # Disk usage of root filesystem
+    # Disk usage of the host root filesystem, mounted read-only by docker-compose.
     try:
-        u = shutil.disk_usage("/")
+        u = shutil.disk_usage("/host/root")
         disk_str = f"{u.used / 1e9:.1f} GB / {u.total / 1e9:.1f} GB ({u.used / u.total * 100:.0f}%)"
     except Exception:
         disk_str = "unavailable"

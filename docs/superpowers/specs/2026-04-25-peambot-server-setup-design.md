@@ -40,7 +40,8 @@ ESP32 → ws://192.168.1.103:8000/xiaozhi/v1/
 |--------|---------------------|-------------------|-------|
 | LLM    | Gemini 2.0 Flash    | `GeminiLLM`       | native `gemini` type |
 | ASR    | Groq Whisper        | `GroqASR`         | `openai` type with Groq base URL |
-| TTS    | ElevenLabs          | `ElevenLabsTTS`   | `custom` type, POST to ElevenLabs REST API |
+| TTS    | EdgeTTS first       | `EdgeTTS`         | selected in the current template for low-friction bring-up |
+| TTS alt| ElevenLabs          | `ElevenLabsTTS`   | defined but not selected; `custom` type, POST to ElevenLabs REST API |
 | VAD    | SileroVAD           | `SileroVAD`       | local; Torch Hub auto-downloads model |
 | Memory | mem0ai              | `mem0ai`          | cloud, 1000 free calls/mo |
 | Intent | function_call       | —                 | enables MCP tool dispatch |
@@ -85,14 +86,15 @@ The main server connects at `http://peambot-mcp-server:8001/sse`.
 ### Tools
 
 **pihole_get_stats** — returns queries today, blocked count, percent blocked, server status.
-Uses Pi-hole API at `http://${PIHOLE_HOST}/admin/api.php`.
+Uses Pi-hole v6 API at `http://${PIHOLE_HOST}:${PIHOLE_PORT}/api/stats/summary`
+after authenticating with `POST /api/auth`.
 
 **pihole_pause(seconds)** — pauses blocking for N seconds (0 = indefinitely).
 
 **pihole_resume** — resumes blocking.
 
 **system_get_stats** — reads `/host/proc/uptime`, `/host/sys/class/thermal/thermal_zone0/temp`,
-`shutil.disk_usage("/")`. Returns formatted string.
+`shutil.disk_usage("/host/root")`. Returns formatted string.
 
 **get_weather(city)** — calls OpenWeatherMap Current Weather API v2.5.
 Returns current conditions, temperature (°C), humidity, wind speed.
@@ -106,7 +108,8 @@ mcp-server/
 └── server.py           # all five tools in one file
 ```
 
-Mounts `host /proc → /host/proc:ro` and `host /sys → /host/sys:ro` for system stats.
+Mounts `host / → /host/root:ro`, `host /proc → /host/proc:ro`, and
+`host /sys → /host/sys:ro` for system stats.
 
 ---
 
@@ -115,7 +118,7 @@ Mounts `host /proc → /host/proc:ro` and `host /sys → /host/sys:ro` for syste
 ```yaml
 services:
   xiaozhi-server:
-    image: ghcr.nju.edu.cn/xinnan-tech/xiaozhi-esp32-server:server_latest
+    image: ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_latest
     container_name: xiaozhi-esp32-server
     restart: unless-stopped
     security_opt: [seccomp:unconfined]
@@ -137,6 +140,7 @@ services:
     ports:
       - "8001:8001"
     volumes:
+      - /:/host/root:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
     env_file: .env
@@ -153,9 +157,10 @@ GEMINI_API_KEY=
 GROQ_API_KEY=
 ELEVENLABS_API_KEY=
 MEM0_API_KEY=
-PIHOLE_API_KEY=
+PIHOLE_PASSWORD=
 OWM_API_KEY=
 PIHOLE_HOST=192.168.1.103
+PIHOLE_PORT=8080
 ```
 
 The `.config.yaml` references keys by value (not env interpolation — the xiaozhi server
