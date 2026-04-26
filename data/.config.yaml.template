@@ -14,6 +14,8 @@ prompt: |
   You have tools: weather lookup, Pi-hole stats/pause/resume, system health.
   Use them when asked. Never elaborate beyond what was asked. Always respond in English.
 
+system_error_response: "I hit an internal tool error. Please try again in a moment."
+
 wakeup_words:
   - "Hey Peambot"
   - "Peambot"
@@ -22,7 +24,7 @@ wakeup_words:
 selected_module:
   VAD: SileroVAD
   ASR: GroqASR
-  LLM: GeminiLLM
+  LLM: GeminiOpenAILLM
   TTS: EdgeTTS
   Memory: mem0ai
   Intent: function_call
@@ -33,6 +35,11 @@ Intent:
     functions: []
 
 LLM:
+  GeminiOpenAILLM:
+    type: openai
+    api_key: "${GEMINI_API_KEY}"
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
+    model_name: "gemini-2.5-flash"
   GeminiLLM:
     type: gemini
     api_key: "${GEMINI_API_KEY}"
