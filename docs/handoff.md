@@ -328,6 +328,17 @@ The wake word detection service runs as a systemd user unit on voidbox (192.168.
 
 Service name: `peambot-wakeword` (systemd user service on voidbox)
 
+### Installation (run once after cloning or after merge)
+
+```bash
+cp /home/jason/peambot/wake-word-service/peambot-wakeword.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable peambot-wakeword.service
+systemctl --user start peambot-wakeword.service
+# Enable autostart without login session:
+loginctl enable-linger jason
+```
+
 Check status:
 
 ```bash
