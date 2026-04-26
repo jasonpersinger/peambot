@@ -34,3 +34,6 @@ models/
 logs/
 tmp/
 temp/
+
+# Git worktrees
+.worktrees/
