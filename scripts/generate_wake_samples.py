@@ -34,8 +34,8 @@ async def synthesize(voice: str, idx: int) -> str:
         communicate = edge_tts.Communicate(PHRASE, voice)
         await communicate.save(out_mp3)
         subprocess.run(
-            ["ffmpeg", "-y", "-i", out_mp3, "-ar", "16000", "-ac", "1", out_wav],
-            check=True, capture_output=True
+            ["ffmpeg", "-y", "-loglevel", "error", "-i", out_mp3, "-ar", "16000", "-ac", "1", out_wav],
+            check=True
         )
         os.remove(out_mp3)
         return out_wav
