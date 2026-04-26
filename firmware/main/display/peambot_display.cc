@@ -195,13 +195,146 @@ void PeambotDisplay::ApplyIdle() {
     }
 }
 
-// ── Remaining states — color-only stubs until Task 5 ──────
-void PeambotDisplay::ApplyConnecting() { SetEyeColor(state_color(EyeState::Connecting)); }
-void PeambotDisplay::ApplyListening()  { SetEyeColor(state_color(EyeState::Listening));  }
-void PeambotDisplay::ApplyThinking()   { SetEyeColor(state_color(EyeState::Thinking));   }
-void PeambotDisplay::ApplySpeaking()   { SetEyeColor(state_color(EyeState::Speaking));   }
-void PeambotDisplay::ApplyError()      { SetEyeColor(state_color(EyeState::Error));       }
+// ── ApplyConnecting — amber, scanning sweep ───────────────
+void PeambotDisplay::ApplyConnecting() {
+    SetEyeColor(state_color(EyeState::Connecting));
 
-// ── SetStatus / SetEmotion — stubs until Task 5 ───────────
-void PeambotDisplay::SetStatus(const char* status)   { (void)status; }
-void PeambotDisplay::SetEmotion(const char* emotion) { (void)emotion; }
+    lv_obj_t* eyes[2] = {left_eye_, right_eye_};
+    int base_x[2]     = {LEFT_EYE_X, RIGHT_EYE_X};
+    for (int i = 0; i < 2; i++) {
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, eyes[i]);
+        lv_anim_set_values(&a, base_x[i] - 18, base_x[i] + 18);
+        lv_anim_set_exec_cb(&a, anim_x_cb);
+        lv_anim_set_duration(&a, 1100);
+        lv_anim_set_reverse_duration(&a, 1100);
+        lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
+        lv_anim_start(&a);
+    }
+}
+
+// ── ApplyListening — cyan, wide open, glow pulse ──────────
+void PeambotDisplay::ApplyListening() {
+    SetEyeColor(state_color(EyeState::Listening));
+
+    lv_obj_t* eyes[2] = {left_eye_, right_eye_};
+    for (int i = 0; i < 2; i++) {
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, eyes[i]);
+        lv_anim_set_values(&a, LV_OPA_50, LV_OPA_COVER);
+        lv_anim_set_exec_cb(&a, anim_shadow_opa_cb);
+        lv_anim_set_duration(&a, 700);
+        lv_anim_set_reverse_duration(&a, 700);
+        lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
+        lv_anim_start(&a);
+    }
+}
+
+// ── ApplyThinking — purple, gaze up-left, slow blink ──────
+void PeambotDisplay::ApplyThinking() {
+    SetEyeColor(state_color(EyeState::Thinking));
+
+    // Shift iris gaze up-left
+    lv_obj_align(left_iris_,  LV_ALIGN_CENTER, -12, -14);
+    lv_obj_align(right_iris_, LV_ALIGN_CENTER, -12, -14);
+
+    lv_obj_t* eyes[2] = {left_eye_, right_eye_};
+    for (int i = 0; i < 2; i++) {
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, eyes[i]);
+        lv_anim_set_values(&a, EYE_H, 4);
+        lv_anim_set_exec_cb(&a, anim_height_cb);
+        lv_anim_set_duration(&a, 120);
+        lv_anim_set_reverse_duration(&a, 80);
+        lv_anim_set_delay(&a, 7000 + i * 80);
+        lv_anim_set_repeat_delay(&a, 6800);
+        lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_start(&a);
+    }
+}
+
+// ── ApplySpeaking — green, rhythmic squint ────────────────
+void PeambotDisplay::ApplySpeaking() {
+    SetEyeColor(state_color(EyeState::Speaking));
+
+    lv_obj_t* eyes[2] = {left_eye_, right_eye_};
+    for (int i = 0; i < 2; i++) {
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, eyes[i]);
+        lv_anim_set_values(&a, EYE_H, 60);
+        lv_anim_set_exec_cb(&a, anim_height_cb);
+        lv_anim_set_duration(&a, 380);
+        lv_anim_set_reverse_duration(&a, 380);
+        lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
+        lv_anim_start(&a);
+    }
+}
+
+// ── ApplyError — red, narrowed, flicker ───────────────────
+void PeambotDisplay::ApplyError() {
+    SetEyeColor(state_color(EyeState::Error));
+    lv_obj_set_height(left_eye_, 80);
+    lv_obj_set_height(right_eye_, 80);
+
+    lv_obj_t* eyes[2] = {left_eye_, right_eye_};
+    for (int i = 0; i < 2; i++) {
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, eyes[i]);
+        lv_anim_set_values(&a, LV_OPA_COVER, LV_OPA_50);
+        lv_anim_set_exec_cb(&a, anim_opa_cb);
+        lv_anim_set_duration(&a, 200);
+        lv_anim_set_reverse_duration(&a, 200);
+        lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_start(&a);
+    }
+}
+
+// ── SetStatus ─────────────────────────────────────────────
+void PeambotDisplay::SetStatus(const char* status) {
+    if (!status || !left_eye_) return;
+    DisplayLockGuard lock(this);
+
+    std::string_view s(status);
+    EyeState next = EyeState::Idle;
+
+    if (s.find("Connecting") != std::string_view::npos ||
+        s.find("Logging in") != std::string_view::npos ||
+        s.find("Waiting for network") != std::string_view::npos) {
+        next = EyeState::Connecting;
+    } else if (s.find("Listening") != std::string_view::npos) {
+        next = EyeState::Listening;
+    } else if (s.find("Thinking") != std::string_view::npos) {
+        next = EyeState::Thinking;
+    } else if (s.find("Speaking") != std::string_view::npos) {
+        next = EyeState::Speaking;
+    } else if (s.find("Error") != std::string_view::npos ||
+               s.find("Failed") != std::string_view::npos ||
+               s.find("Timeout") != std::string_view::npos ||
+               s.find("Unable") != std::string_view::npos) {
+        next = EyeState::Error;
+    }
+
+    TransitionTo(next);
+}
+
+// ── SetEmotion ────────────────────────────────────────────
+void PeambotDisplay::SetEmotion(const char* emotion) {
+    if (!emotion || !left_eye_) return;
+    DisplayLockGuard lock(this);
+
+    std::string_view e(emotion);
+    if (e == "thinking") {
+        TransitionTo(EyeState::Thinking);
+    } else if (e == "happy" || e == "excited") {
+        TransitionTo(EyeState::Listening);
+    }
+    // "neutral" and unrecognised: no override
+}
