@@ -65,7 +65,7 @@ void UdpTrigger::Run() {
             continue;
         }
         TickType_t now = xTaskGetTickCount();
-        if ((now - last_trigger) * portTICK_PERIOD_MS < COOLDOWN_MS) {
+        if ((now - last_trigger) < pdMS_TO_TICKS(COOLDOWN_MS)) {
             ESP_LOGD(TAG, "Cooldown active, ignoring trigger");
             continue;
         }
