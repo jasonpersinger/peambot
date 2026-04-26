@@ -299,19 +299,45 @@ def financial_update(query: str) -> str:
 @mcp.tool()
 def sports_lineup_analysis(query: str) -> str:
     """
-    Analyze current sports lineups, injuries, rosters, or matchups using live Google Search grounding.
+    Analyze current sports lineups, injuries, rosters, matchups, or likely winners using live Google Search grounding.
 
     Args:
         query: Team, player, league, game, or lineup question, e.g.
             'Eagles projected starters', 'Sixers injury report', or
-            'Phillies lineup tonight'.
+            'Phillies lineup tonight'. Can also ask who is most likely to win.
     """
     return _gemini_grounded_answer(
         "Analyze the current sports lineup or matchup for this request. Use the "
         "latest available injury, roster, depth chart, or official lineup reports. "
-        "Call out if lineups are projected rather than confirmed. Request: "
+        "If the user asks who is likely to win, make a reasoned pick with a short "
+        "confidence level and explain the key factors. This is analysis, not betting "
+        "advice. Call out if lineups are projected rather than confirmed. Request: "
         f"{query}",
         max_words=95,
+    )
+
+
+@mcp.tool()
+def sports_game_prediction(query: str) -> str:
+    """
+    Predict likely winners for sports games using live Google Search grounding.
+
+    Use this for questions like who will win, best matchup pick, likely winner
+    today, or game prediction. The answer should be analytical, probabilistic,
+    and based on public sports context, not gambling advice.
+
+    Args:
+        query: Team, league, matchup, date, or slate, e.g. 'today NBA games',
+            'Yankees vs Red Sox tonight', or 'most likely MLB winner today'.
+    """
+    return _gemini_grounded_answer(
+        "You have live Google Search grounding. Make a sports analyst's pick for "
+        "this request using available public context: probable starters, injuries, "
+        "lineups, recent form, standings, home/away context, rest, and matchup notes. "
+        "Pick the likely winner or strongest few picks, give brief reasoning, and "
+        "include low/medium/high confidence. Avoid guarantees, betting instructions, "
+        f"and odds-focused advice. Request: {query}",
+        max_words=105,
     )
 
 
