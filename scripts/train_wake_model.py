@@ -83,16 +83,21 @@ def extract_embedding_for_wav(wav_path: str, model: Model) -> np.ndarray | None:
             chunk = np.pad(chunk, (0, chunk_size - len(chunk)))
         model.predict(chunk)
 
-    # Grab last N_FRAMES from the feature buffer
+    # Grab only the NEW rows added during this call
     buf = model.preprocessor.feature_buffer
-    if buf.shape[0] < N_FRAMES:
-        # Not enough frames generated — pad with zeros
-        pad = np.zeros((N_FRAMES - buf.shape[0], EMBED_DIM), dtype=np.float32)
-        frames = np.vstack([pad, buf])
-    else:
-        frames = buf[-N_FRAMES:, :]
+    new_rows = buf[initial_buf_len:, :]
+    if len(new_rows) == 0:
+        return None
+    # Take the last N_FRAMES new rows (or all if fewer)
+    frames_to_use = min(N_FRAMES, len(new_rows))
+    embedding = new_rows[-frames_to_use:, :].flatten()
+    # Pad to full size if needed
+    if frames_to_use < N_FRAMES:
+        padding = np.zeros((N_FRAMES - frames_to_use, new_rows.shape[1]), dtype=np.float32)
+        full_frames = np.vstack([padding, new_rows[-frames_to_use:, :]])
+        embedding = full_frames.flatten()
 
-    return frames.flatten().astype(np.float32)
+    return embedding.astype(np.float32)
 
 
 def reset_model_state(model: Model):
@@ -104,6 +109,7 @@ def reset_model_state(model: Model):
     )
     model.preprocessor.accumulated_samples = 0
     model.preprocessor.melspectrogram_buffer = np.ones((76, 32))
+    model.preprocessor.raw_data_buffer.clear()
 
 
 # ─── Background noise generation ─────────────────────────────────────────────
