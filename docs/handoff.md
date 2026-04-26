@@ -18,6 +18,7 @@ Peambot is working as a self-hosted voice assistant.
   - `peambot-mcp-server`
 - Firmware is flashed and activated.
 - Wake/activation worked in live testing.
+- Wake word detection via openWakeWord on voidbox; "Hey Peambot" triggers listening mode over UDP.
 - Voice answers work through Groq ASR, Gemini LLM, EdgeTTS, Silero VAD, mem0ai, and MCP tools.
 - Broad live Gemini web/search grounding is available through an MCP tool.
 
@@ -46,6 +47,11 @@ Commit signing with GPG timed out during one session, so recent commits were mad
 - [scripts/gen-config.py](../scripts/gen-config.py): substitutes `.env` values into `data/.config.yaml.template`.
 - [firmware/](../firmware): xiaozhi ESP32 firmware tree with Peambot display work.
 - [docs/secrets.md](secrets.md): secret handling rules.
+- `wake-word-service/wakeword_service.py`: openWakeWord + onnxruntime service; runs on voidbox, broadcasts UDP on detection.
+- `wake-word-service/peambot-wakeword.service`: systemd user unit for wakeword_service.py.
+- `wake-word-training/hey_peambot.onnx`: trained wake word ONNX model (committed).
+- [scripts/generate_wake_samples.py](../scripts/generate_wake_samples.py): generates 500 TTS WAV samples for training.
+- [scripts/train_wake_model.py](../scripts/train_wake_model.py): trains the wake word model from positive + synthetic noise samples.
 
 Untracked files present at last handoff and intentionally not touched:
 
@@ -70,6 +76,16 @@ ESP32-S3 AMOLED board
 ```
 
 The MCP sidecar exposes local and live-world tools. The xiaozhi server discovers them through `data/.mcp_server_settings.json`.
+
+Wake word trigger (voidbox only):
+
+```text
+office mic
+  -> openWakeWord service (voidbox)
+  -> UDP broadcast 192.168.1.255:9999 "PEAMBOT_WAKE"
+  -> ESP32 UDP listener task (port 9999)
+  -> Application::StartListening()
+```
 
 ## Provider Configuration
 
@@ -306,9 +322,61 @@ Good manual tests after any deployment:
 - "Peambot, what's the weather in Philadelphia?"
 - "Peambot, pause Pi-hole for ten minutes."
 
+## Wake Word Service
+
+The wake word detection service runs as a systemd user unit on voidbox (192.168.1.103) and listens to the office microphone for "Hey Peambot".
+
+Service name: `peambot-wakeword` (systemd user service on voidbox)
+
+### Installation (run once after cloning or after merge)
+
+```bash
+cp /home/jason/peambot/wake-word-service/peambot-wakeword.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable peambot-wakeword.service
+systemctl --user start peambot-wakeword.service
+# Enable autostart without login session:
+loginctl enable-linger jason
+```
+
+Check status:
+
+```bash
+systemctl --user status peambot-wakeword.service
+```
+
+View logs:
+
+```bash
+journalctl --user -u peambot-wakeword.service -n 30
+```
+
+Model path:
+
+```text
+/home/jason/peambot/wake-word-training/hey_peambot.onnx
+```
+
+Tunable environment variables:
+
+- `WAKE_THRESHOLD` (default 0.5): detection confidence threshold; raise to 0.6–0.8 to reduce false positives.
+- `WAKE_COOLDOWN` (default 3.0): seconds between consecutive detections.
+
+Known limitation:
+
+The model was trained on synthetic noise negatives. It may have a higher false positive rate against real speech. If false positives occur, tune `WAKE_THRESHOLD` upward (0.6–0.8).
+
+Test manually (from voidbox):
+
+```bash
+echo -n "PEAMBOT_WAKE" | nc -u -w1 255.255.255.255 9999
+```
+
+This broadcasts a test message to the UDP listener on the ESP32.
+
 ## Next Good Work
 
-Highest-value next steps:
+Highest-value next steps (wake word feature completed):
 
 1. Add a capability manifest tool so "what can you do?" returns a clean feature list.
 2. Add a real sports data layer for schedules, injuries, odds/favorites, and model-based picks.
@@ -317,6 +385,7 @@ Highest-value next steps:
 5. Fix or disable mem0ai save errors.
 6. Add a longer-form research mode if the voice stack can handle delayed responses.
 7. Improve source/citation handling for spoken answers and optional screen display.
+8. Reduce false positives in wake word detection by improving the model with real-world speech samples or tuning WAKE_THRESHOLD.
 
 ## Working-Tree Rules
 

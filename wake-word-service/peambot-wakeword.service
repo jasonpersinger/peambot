@@ -1,0 +1,14 @@
+[Unit]
+Description=Peambot Wake Word Detector
+After=sound.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/jason/peambot/wake-word-service/wakeword_service.py
+Environment=WAKE_MODEL_PATH=/home/jason/peambot/wake-word-training/hey_peambot.onnx
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
